@@ -639,6 +639,44 @@
         .footer-link:hover {
             color: var(--primary-color);
         }
+
+        /* Theme toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .theme-toggle-checkbox {
+            display: none;
+        }
+
+        .theme-toggle-label {
+            display: block;
+            width: 60px;
+            height: 30px;
+            background: var(--bg-tertiary);
+            border-radius: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: background var(--transition-speed);
+        }
+
+        .theme-toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 24px;
+            height: 24px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            transition: transform var(--transition-speed);
+        }
+
+        .theme-toggle-checkbox:checked + .theme-toggle-label:after {
+            transform: translateX(30px);
+        }
     </style>
 </head>
 <body data-theme="dark">
@@ -785,13 +823,7 @@
         <footer>
             <div class="footer-content">
                 <p>No Ad YouTube Premium - Trải nghiệm YouTube không quảng cáo</p>
-                <div class="footer-links">
-                    <a href="#" class="footer-link">Giới thiệu</a>
-                    <a href="#" class="footer-link">Điều khoản sử dụng</a>
-                    <a href="#" class="footer-link">Chính sách bảo mật</a>
-                    <a href="#" class="footer-link">Liên hệ</a>
-                </div>
-                <p>© 2023 No Ad YouTube. Tất cả quyền được bảo lưu.</p>
+                <p>© 2025 Từ Quang Nam. Tất cả quyền được bảo lưu.</p>
             </div>
         </footer>
     </div>
@@ -948,9 +980,6 @@
             });
         }
 
-        // Các hàm khác (searchVideos, playVideo, toggleFavorite, v.v.) giữ nguyên như trước
-        // ... (giữ nguyên các hàm từ code trước đó)
-
         // Hàm tải video trending
         function loadTrendingVideos() {
             const loader = document.querySelector('.loader');
@@ -1091,10 +1120,279 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Các hàm khác (toggleFavorite, addToFavorites, showHistory, v.v.)
-        // ... (giữ nguyên các hàm từ code trước đó)
+        // Thêm vào lịch sử
+        function addToHistory(item, title = null, isVideo = false) {
+            if (!userData) return;
+            
+            const timestamp = new Date().toISOString();
+            
+            if (isVideo) {
+                // Thêm video vào lịch sử
+                const existingIndex = history.findIndex(h => h.type === 'video' && h.id === item);
+                
+                if (existingIndex !== -1) {
+                    // Nếu đã tồn tại, xóa và thêm lại ở đầu
+                    history.splice(existingIndex, 1);
+                }
+                
+                history.unshift({
+                    type: 'video',
+                    id: item,
+                    title: title,
+                    timestamp: timestamp
+                });
+            } else {
+                // Thêm tìm kiếm vào lịch sử
+                history.unshift({
+                    type: 'search',
+                    query: item,
+                    timestamp: timestamp
+                });
+            }
+            
+            // Giới hạn lịch sử tối đa 50 mục
+            if (history.length > 50) {
+                history = history.slice(0, 50);
+            }
+            
+            // Lưu dữ liệu
+            saveUserData();
+        }
 
-        // Hàm hiển thị thông báo
+        // Chuyển đổi danh mục
+        function changeCategory(category) {
+            currentCategory = category;
+            
+            // Cập nhật tab active
+            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Tìm kiếm theo danh mục
+            const categoryKeywords = {
+                'music': 'âm nhạc nhạc mv official',
+                'game': 'game gameplay trò chơi',
+                'tech': 'công nghệ technology review',
+                'edu': 'giáo dục học tập education',
+                'sport': 'thể thao sport bóng đá'
+            };
+            
+            if (category === 'all') {
+                loadTrendingVideos();
+            } else {
+                document.getElementById('searchInput').value = categoryKeywords[category];
+                searchVideos();
+            }
+        }
+
+        // Hiển thị lịch sử
+        function showHistory() {
+            const videoList = document.getElementById('videoList');
+            videoList.innerHTML = '<h3 class="section-title">Lịch sử</h3>';
+            
+            if (history.length === 0) {
+                videoList.innerHTML += '<p>Chưa có lịch sử xem</p>';
+                return;
+            }
+            
+            // Lọc chỉ hiển thị video (không hiển thị lịch sử tìm kiếm)
+            const videoHistory = history.filter(item => item.type === 'video');
+            
+            if (videoHistory.length === 0) {
+                videoList.innerHTML += '<p>Chưa có lịch sử xem video</p>';
+                return;
+            }
+            
+            videoHistory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'videoItem';
+                div.innerHTML = `
+                    <img src="https://i.ytimg.com/vi/${item.id}/mqdefault.jpg" alt="${item.title}" />
+                    <div class="videoInfo">
+                        <h4>${item.title}</h4>
+                        <p>Đã xem: ${new Date(item.timestamp).toLocaleString('vi-VN')}</p>
+                    </div>
+                `;
+                
+                div.onclick = () => playVideo(item.id, item.title, '');
+                videoList.appendChild(div);
+            });
+        }
+
+        // Hiển thị video yêu thích
+        function showFavorites() {
+            const videoList = document.getElementById('videoList');
+            videoList.innerHTML = '<h3 class="section-title">Video yêu thích</h3>';
+            
+            if (favorites.length === 0) {
+                videoList.innerHTML += '<p>Chưa có video yêu thích</p>';
+                return;
+            }
+            
+            favorites.forEach(fav => {
+                const div = document.createElement('div');
+                div.className = 'videoItem';
+                div.innerHTML = `
+                    <img src="${fav.thumb}" alt="${fav.title}" />
+                    <div class="videoInfo">
+                        <h4>${fav.title}</h4>
+                    </div>
+                    <button class="favorite-btn active" onclick="toggleFavorite(event, '${fav.id}', '${fav.title.replace(/'/g, "\\'")}', '${fav.thumb}')">
+                        <i class="fas fa-heart"></i>
+                    </button>
+                `;
+                
+                div.onclick = () => playVideo(fav.id, fav.title, '');
+                videoList.appendChild(div);
+            });
+        }
+
+        // Chuyển đổi yêu thích
+        function toggleFavorite(event, videoId, title, thumb) {
+            event.stopPropagation(); // Ngăn không cho kích hoạt sự kiện playVideo
+            
+            const index = favorites.findIndex(fav => fav.id === videoId);
+            
+            if (index === -1) {
+                // Thêm vào yêu thích
+                favorites.push({ id: videoId, title: title, thumb: thumb });
+                event.currentTarget.classList.add('active');
+                showToast('Đã thêm vào video yêu thích');
+            } else {
+                // Xóa khỏi yêu thích
+                favorites.splice(index, 1);
+                event.currentTarget.classList.remove('active');
+                showToast('Đã xóa khỏi video yêu thích');
+            }
+            
+            // Lưu dữ liệu
+            saveUserData();
+        }
+
+        // Thêm vào yêu thích từ nút
+        function addToFavorites() {
+            if (!currentVideoId) {
+                showToast('Vui lòng chọn một video trước', 'error');
+                return;
+            }
+            
+            const index = favorites.findIndex(fav => fav.id === currentVideoId);
+            
+            if (index === -1) {
+                // Thêm vào yêu thích
+                favorites.push({ 
+                    id: currentVideoId, 
+                    title: currentVideoTitle, 
+                    thumb: `https://i.ytimg.com/vi/${currentVideoId}/mqdefault.jpg` 
+                });
+                showToast('Đã thêm vào video yêu thích');
+            } else {
+                // Xóa khỏi yêu thích
+                favorites.splice(index, 1);
+                showToast('Đã xóa khỏi video yêu thích');
+            }
+            
+            // Lưu dữ liệu
+            saveUserData();
+            
+            // Cập nhật nút yêu thích
+            updateFavoriteButtons();
+        }
+
+        // Cập nhật nút yêu thích
+        function updateFavoriteButtons() {
+            document.querySelectorAll('.favorite-btn').forEach(btn => {
+                const videoId = btn.getAttribute('onclick').split("'")[1];
+                if (favorites.some(fav => fav.id === videoId)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        // Hiển thị cài đặt
+        function showSettings() {
+            document.getElementById('settingsModal').classList.add('show');
+        }
+
+        // Đóng modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // Chuyển đổi theme
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // Lưu cài đặt theme
+            if (userData) {
+                db.collection('users').doc(userData.uid).update({
+                    'settings.theme': newTheme
+                }).catch(error => {
+                    console.error('Lỗi khi lưu cài đặt theme:', error);
+                });
+            }
+        }
+
+        // Thích video
+        function likeVideo() {
+            if (!currentVideoId) {
+                showToast('Vui lòng chọn một video trước', 'error');
+                return;
+            }
+            
+            showToast('Đã thích video');
+        }
+
+        // Chia sẻ video
+        function shareVideo() {
+            if (!currentVideoId) {
+                showToast('Vui lòng chọn một video trước', 'error');
+                return;
+            }
+            
+            const url = `https://www.youtube.com/watch?v=${currentVideoId}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: currentVideoTitle,
+                    url: url
+                }).catch(error => {
+                    console.error('Lỗi khi chia sẻ:', error);
+                });
+            } else {
+                // Fallback cho trình duyệt không hỗ trợ Web Share API
+                navigator.clipboard.writeText(url)
+                    .then(() => {
+                        showToast('Đã sao chép liên kết vào clipboard');
+                    })
+                    .catch(err => {
+                        console.error('Không thể sao chép văn bản: ', err);
+                    });
+            }
+        }
+
+        // Tải video
+        function downloadVideo() {
+            if (!currentVideoId) {
+                showToast('Vui lòng chọn một video trước', 'error');
+                return;
+            }
+            
+            showToast('Tính năng tải video sẽ sớm được cập nhật');
+        }
+
+        // Hiển thị menu người dùng
+        function showUserMenu() {
+            // Có thể thêm menu dropdown ở đây
+            showToast(`Xin chào ${userData.displayName || userData.email}!`);
+        }
+
+        // Hiển thị thông báo
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
