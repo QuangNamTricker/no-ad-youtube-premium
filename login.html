@@ -281,6 +281,94 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* Modal quên mật khẩu */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity var(--transition-speed);
+        }
+
+        .modal.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: var(--shadow);
+            transform: translateY(-50px);
+            transition: transform var(--transition-speed);
+        }
+
+        .modal.show .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            color: var(--primary-color);
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all var(--transition-speed);
+        }
+
+        .modal-btn.cancel {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            margin-right: 10px;
+        }
+
+        .modal-btn.cancel:hover {
+            background: var(--text-secondary);
+        }
+
+        .modal-btn.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .modal-btn.primary:hover {
+            background: var(--secondary-color);
+        }
+
         @media (max-width: 480px) {
             .auth-container {
                 padding: 20px;
@@ -292,6 +380,10 @@
             
             .logo i {
                 font-size: 2rem;
+            }
+            
+            .modal-content {
+                padding: 20px;
             }
         }
     </style>
@@ -368,6 +460,26 @@
         </form>
     </div>
 
+    <!-- Modal quên mật khẩu -->
+    <div class="modal" id="forgotPasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Quên mật khẩu</h3>
+                <button class="close-modal" onclick="closeModal('forgotPasswordModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="reset-email">Email</label>
+                <input type="email" id="reset-email" placeholder="Nhập email của bạn" required>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn cancel" onclick="closeModal('forgotPasswordModal')">Hủy</button>
+                <button class="modal-btn primary" onclick="handlePasswordReset()">Gửi yêu cầu</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -401,6 +513,8 @@
         const registerBtn = document.getElementById('register-btn');
         const loginLoader = document.getElementById('login-loader');
         const registerLoader = document.getElementById('register-loader');
+        const forgotPasswordLink = document.getElementById('forgot-password');
+        const resetEmailInput = document.getElementById('reset-email');
 
         // Khởi tạo ứng dụng
         document.addEventListener('DOMContentLoaded', function() {
@@ -426,7 +540,15 @@
             registerForm.addEventListener('submit', handleRegister);
 
             // Quên mật khẩu
-            document.getElementById('forgot-password').addEventListener('click', handleForgotPassword);
+            forgotPasswordLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Điền email từ form đăng nhập (nếu có)
+                const loginEmail = document.getElementById('login-email').value;
+                if (loginEmail) {
+                    resetEmailInput.value = loginEmail;
+                }
+                showModal('forgotPasswordModal');
+            });
 
             // Hiển thị/ẩn mật khẩu
             document.getElementById('toggleLoginPassword').addEventListener('click', function() {
@@ -459,6 +581,16 @@
             } else {
                 loginForm.reset();
             }
+        }
+
+        // Hiển thị modal
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+        }
+
+        // Đóng modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
         }
 
         // Xử lý đăng nhập
@@ -508,6 +640,9 @@
                             break;
                         case 'auth/invalid-email':
                             errorMessage = 'Email không hợp lệ';
+                            break;
+                        case 'auth/user-disabled':
+                            errorMessage = 'Tài khoản đã bị vô hiệu hóa';
                             break;
                     }
                     
@@ -601,6 +736,9 @@
                         case 'auth/weak-password':
                             errorMessage = 'Mật khẩu quá yếu';
                             break;
+                        case 'auth/operation-not-allowed':
+                            errorMessage = 'Phương thức đăng nhập không được kích hoạt';
+                            break;
                     }
                     
                     showMessage(errorMessage, 'error');
@@ -614,21 +752,46 @@
         }
 
         // Xử lý quên mật khẩu
-        function handleForgotPassword(e) {
-            e.preventDefault();
+        function handlePasswordReset() {
+            const email = document.getElementById('reset-email').value;
             
-            const email = document.getElementById('login-email').value;
             if (!email) {
                 showMessage('Vui lòng nhập email của bạn', 'error');
                 return;
             }
             
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showMessage('Email không hợp lệ', 'error');
+                return;
+            }
+            
             auth.sendPasswordResetEmail(email)
                 .then(() => {
-                    showMessage('Email đặt lại mật khẩu đã được gửi! Vui lòng kiểm tra hộp thư của bạn.', 'success');
+                    closeModal('forgotPasswordModal');
+                    showMessage('Email đặt lại mật khẩu đã được gửi! Vui lòng kiểm tra hộp thư của bạn (bao gồm thư mục spam).', 'success');
+                    
+                    // Ghi log để debug
+                    console.log('Password reset email sent to:', email);
                 })
                 .catch((error) => {
-                    showMessage('Đã xảy ra lỗi khi gửi email đặt lại mật khẩu', 'error');
+                    let errorMessage = 'Đã xảy ra lỗi khi gửi email đặt lại mật khẩu';
+                    
+                    switch(error.code) {
+                        case 'auth/user-not-found':
+                            errorMessage = 'Email không tồn tại trong hệ thống';
+                            break;
+                        case 'auth/invalid-email':
+                            errorMessage = 'Email không hợp lệ';
+                            break;
+                        case 'auth/too-many-requests':
+                            errorMessage = 'Quá nhiều yêu cầu. Vui lòng thử lại sau';
+                            break;
+                    }
+                    
+                    showMessage(errorMessage, 'error');
+                    console.error('Password reset error:', error);
                 });
         }
 
